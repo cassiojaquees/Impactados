@@ -219,7 +219,7 @@
   .expand-panel{
     max-height:0;overflow:hidden;transition:max-height .35s ease;
   }
-  .expand-panel.open{max-height:2400px;padding-top:14px;}
+  .expand-panel.open{max-height:6000px;padding-top:14px;}
   .expand-panel .chip-stat-row{padding-top:2px;}
 
   /* ---------- barra suspensa de filtro (Perfil → Território → Setor) ---------- */
@@ -273,6 +273,7 @@
   .sm-row .fill{display:block;height:100%;background:var(--verde);transition:width .5s cubic-bezier(.16,.8,.3,1), filter .15s ease;}
   .sm-row .v{font-family:var(--font-mono);font-size:11.5px;text-align:right;font-variant-numeric:tabular-nums;}
   .sm-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 0;}
+  .sm-caption{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);margin:14px 0 0;}
 
   /* ---------- top-3 chip stats ---------- */
   .chip-stat-group{margin-top:28px;}
@@ -455,7 +456,13 @@
     <div class="sec-head"><h2>Setor de atuação dos negócios</h2></div>
     <p class="sec-note">Os 3 setores mais frequentes entre Comprometidos com CNAE informado.</p>
     <div class="chip-stat-row" id="setorTop"></div>
-    <p class="list-more" id="setorOthers"></p>
+    <button class="expand-toggle" id="setorToggleBtn" style="display:none">
+      <span class="chevron"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="setorToggleLabel"></span>
+    </button>
+    <div class="expand-panel" id="setorRestPanel">
+      <div class="sm-rows" id="setorFullList"></div>
+      <p class="sm-caption" id="setorCoverage"></p>
+    </div>
   </div>
 </section>
 </div>
@@ -689,12 +696,13 @@ function render(data){
     {label:"Participantes", desc:"Identificação parcial", n:participantes.length, color:"var(--laranja)", soft:"var(--laranja-soft)", r:105},
     {label:"Influenciados", desc:"Estimativa agregada, sem nome", n:influenciados.length, color:"var(--marrom)", soft:"var(--marrom-soft)", r:150},
   ];
+  const totalImpactados = comprometidos.length + participantes.length + influenciados.length;
   const svg = document.getElementById("ringsSvg");
   let svgHtml = "";
   ringDefs.slice().reverse().forEach(rd=>{
     svgHtml += `<circle class="ring-shape" data-ring="${rd.label}" cx="180" cy="180" r="${rd.r}" fill="${rd.soft}" stroke="${rd.color}" stroke-width="1.5" ${rd.label==="Influenciados"?'stroke-dasharray="3 4"':''}/>`;
   });
-  svg.innerHTML = svgHtml + `<text id="ringCenterN" data-count="${comprometidos.length}" x="180" y="176" text-anchor="middle" font-family="IBM Plex Mono" font-size="26" fill="var(--ink)">0</text><text x="180" y="196" text-anchor="middle" font-family="IBM Plex Sans" font-size="11" fill="var(--ink-soft)">comprometidos</text>`;
+  svg.innerHTML = svgHtml + `<text id="ringCenterN" data-count="${totalImpactados}" x="180" y="176" text-anchor="middle" font-family="IBM Plex Mono" font-size="26" fill="var(--ink)">0</text><text id="ringCenterL" x="180" y="196" text-anchor="middle" font-family="IBM Plex Sans" font-size="11" fill="var(--ink-soft)">pessoas impactadas</text>`;
   document.getElementById("ringsLegend").innerHTML = ringDefs.map(rd=>`
     <div class="rl-item" data-ring="${rd.label}">
       <span class="rl-dot" style="background:${rd.color}"></span>
@@ -703,14 +711,24 @@ function render(data){
     </div>`).join("");
 
   const ringsPanel = document.getElementById("ringsPanel");
+  const ringCenterN = document.getElementById("ringCenterN");
+  const ringCenterL = document.getElementById("ringCenterL");
+  const ringDefsByLabel = {};
+  ringDefs.forEach(rd=>{ ringDefsByLabel[rd.label] = rd; });
+
   document.querySelectorAll("[data-ring]").forEach(el=>{
     el.addEventListener("mouseenter", ()=>{
       ringsPanel.classList.add("dim-others");
       document.querySelectorAll(`[data-ring="${el.dataset.ring}"]`).forEach(m=>m.classList.add("hot"));
+      const rd = ringDefsByLabel[el.dataset.ring];
+      ringCenterN.textContent = rd.n;
+      ringCenterL.textContent = rd.label.toLowerCase();
     });
     el.addEventListener("mouseleave", ()=>{
       ringsPanel.classList.remove("dim-others");
       document.querySelectorAll(`[data-ring="${el.dataset.ring}"]`).forEach(m=>m.classList.remove("hot"));
+      ringCenterN.textContent = totalImpactados;
+      ringCenterL.textContent = "pessoas impactadas";
     });
   });
 
@@ -805,15 +823,39 @@ function render(data){
     const setorCounts = sortDesc(countBy(setorFilled,"setor"));
     const setorTop = setorCounts.slice(0,3);
     const setorRest = setorCounts.slice(3);
+
     document.getElementById("setorTop").innerHTML = setorTop.length
       ? setorTop.map(([s,n])=>`<div class="chip-stat"><b>${n}</b><span>${s}</span></div>`).join("")
       : `<p class="sm-empty">Sem setor preenchido neste recorte.</p>`;
-    const setorOthersEl = document.getElementById("setorOthers");
+
+    const toggleBtn = document.getElementById("setorToggleBtn");
+    const toggleLabel = document.getElementById("setorToggleLabel");
+    const panel = document.getElementById("setorRestPanel");
+    panel.classList.remove("open");
+    toggleBtn.classList.remove("open");
+
     if(setorRest.length){
-      const restTotal = setorRest.reduce((a,[,n])=>a+n,0);
-      setorOthersEl.textContent = `+${setorRest.length} outro${setorRest.length>1?"s":""} setor${setorRest.length>1?"es":""} · ${restTotal} · n=${setorFilled.length} de ${subset.length} Comprometidos com setor preenchido`;
+      const max = setorCounts.length ? setorCounts[0][1] : 1;
+      document.getElementById("setorFullList").innerHTML = setorCounts.map(([s,n])=>`
+        <div class="sm-row">
+          <span class="k">${s}</span>
+          <span class="track"><span class="fill" style="width:${(n/max*100).toFixed(1)}%"></span></span>
+          <span class="v">${n}</span>
+        </div>`).join("");
+      document.getElementById("setorCoverage").textContent =
+        `n=${setorFilled.length} de ${subset.length} Comprometidos com setor preenchido`;
+
+      const labelClosed = `Ver todos os ${setorCounts.length} setores`;
+      const labelOpen = "Ocultar";
+      toggleLabel.textContent = labelClosed;
+      toggleBtn.style.display = "inline-flex";
+      toggleBtn.onclick = ()=>{
+        const isOpen = panel.classList.toggle("open");
+        toggleBtn.classList.toggle("open", isOpen);
+        toggleLabel.textContent = isOpen ? labelOpen : labelClosed;
+      };
     } else {
-      setorOthersEl.textContent = `n=${setorFilled.length} de ${subset.length} Comprometidos com setor preenchido`;
+      toggleBtn.style.display = "none";
     }
   }
 
