@@ -351,7 +351,6 @@
       <a href="#volume">Volume</a>
       <a href="#perfil">Perfil</a>
       <a href="#territorio">Território</a>
-      <a href="#funil">Funil</a>
       <a href="#metodologia">Metodologia</a>
     </nav>
   </div>
@@ -454,20 +453,12 @@
 <section id="setor" class="reveal">
   <div class="wrap">
     <div class="sec-head"><h2>Setor de atuação dos negócios</h2></div>
-    <p class="sec-note">Os 3 setores mais frequentes entre Comprometidos da subcategoria Startup com CNAE informado.</p>
+    <p class="sec-note">Os 3 setores mais frequentes entre Comprometidos com CNAE informado.</p>
     <div class="chip-stat-row" id="setorTop"></div>
     <p class="list-more" id="setorOthers"></p>
   </div>
 </section>
 </div>
-
-<section id="funil" class="reveal">
-  <div class="wrap">
-    <div class="sec-head"><h2>Funil ilustrativo — Participante → Comprometido</h2></div>
-    <p class="sec-note">Leitura aproximada: nem todo Participante é um candidato não-selecionado, mas a proporção já indica o quanto do funil de entrada se converte em vínculo efetivo.</p>
-    <div class="funnel" id="funnelBox"></div>
-  </div>
-</section>
 
 <footer id="metodologia">
   <div class="wrap">
@@ -810,8 +801,7 @@ function render(data){
   }
 
   function renderSetor(subset){
-    const subStartups = subset.filter(r=>r.subcategoria==="Startup");
-    const setorFilled = subStartups.filter(r=>r.setor && r.setor.trim()!=="");
+    const setorFilled = subset.filter(r=>r.setor && r.setor.trim()!=="");
     const setorCounts = sortDesc(countBy(setorFilled,"setor"));
     const setorTop = setorCounts.slice(0,3);
     const setorRest = setorCounts.slice(3);
@@ -821,9 +811,9 @@ function render(data){
     const setorOthersEl = document.getElementById("setorOthers");
     if(setorRest.length){
       const restTotal = setorRest.reduce((a,[,n])=>a+n,0);
-      setorOthersEl.textContent = `+${setorRest.length} outro${setorRest.length>1?"s":""} setor${setorRest.length>1?"es":""} · ${restTotal} · n=${setorFilled.length} de ${subStartups.length} startups com CNAE preenchido`;
+      setorOthersEl.textContent = `+${setorRest.length} outro${setorRest.length>1?"s":""} setor${setorRest.length>1?"es":""} · ${restTotal} · n=${setorFilled.length} de ${subset.length} Comprometidos com setor preenchido`;
     } else {
-      setorOthersEl.textContent = `n=${setorFilled.length} de ${subStartups.length} startups com CNAE preenchido`;
+      setorOthersEl.textContent = `n=${setorFilled.length} de ${subset.length} Comprometidos com setor preenchido`;
     }
   }
 
@@ -880,15 +870,6 @@ function render(data){
   }
   scopeFilterEl.addEventListener("change", applyScopeFilter);
   applyScopeFilter();
-
-  /* ---- funil ---- */
-  const naoSelecionados = participantes.filter(r=>r.subcategoria==="Inscrito não selecionado").length;
-  const totalInscritos = naoSelecionados + startups.length;
-  document.getElementById("funnelBox").innerHTML = `
-    <div class="fn-step" style="background:var(--laranja-soft)"><span class="label">Inscritos no processo (estimado)</span><span class="n">${totalInscritos}</span></div>
-    <div class="fn-arrow">↓ ${fmtPct(startups.length/totalInscritos*100)} de conversão</div>
-    <div class="fn-step" style="background:var(--verde-soft)"><span class="label">Selecionados — Comprometidos (Startup)</span><span class="n">${startups.length}</span></div>
-  `;
 
 }
 
